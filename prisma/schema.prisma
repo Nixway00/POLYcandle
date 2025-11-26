@@ -1,0 +1,88 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoundStatus {
+  OPEN
+  LOCKED
+  SETTLED
+}
+
+enum BetSide {
+  GREEN
+  RED
+}
+
+enum WinnerSide {
+  GREEN
+  RED
+  DRAW
+}
+
+enum BetStatus {
+  PENDING
+  WON
+  LOST
+  REFUNDED
+}
+
+model Round {
+  id               String      @id @default(cuid())
+  symbol           String      // BTCUSDT, ETHUSDT, SOLUSDT, ZECUSDT
+  timeframe        String      @default("5m")
+  startTime        DateTime
+  endTime          DateTime
+  status           RoundStatus @default(OPEN)
+  
+  // Pool amounts
+  totalGreen       Decimal     @default(0) @db.Decimal(20, 8)
+  totalRed         Decimal     @default(0) @db.Decimal(20, 8)
+  
+  // Bonus and fees
+  bonusBoost       Decimal     @default(0) @db.Decimal(20, 8)
+  feeRate          Decimal     @default(0.05) @db.Decimal(10, 8)
+  
+  // Results (null until settled)
+  winnerSide       WinnerSide?
+  multiplierGreen  Decimal?    @db.Decimal(20, 8)
+  multiplierRed    Decimal?    @db.Decimal(20, 8)
+  
+  // Timestamps
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  
+  // Relations
+  bets             Bet[]
+  
+  @@unique([symbol, startTime])
+  @@index([symbol, status])
+  @@index([status, endTime])
+}
+
+model Bet {
+  id             String     @id @default(cuid())
+  roundId        String
+  walletAddress  String
+  side           BetSide
+  amount         Decimal    @db.Decimal(20, 8)
+  payout         Decimal    @default(0) @db.Decimal(20, 8)
+  status         BetStatus  @default(PENDING)
+  
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  
+  // Relations
+  round          Round      @relation(fields: [roundId], references: [id])
+  
+  @@index([roundId])
+  @@index([walletAddress])
+}
+

@@ -1,0 +1,183 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { SUPPORTED_SYMBOLS, PlaceBetRequest, PlaceBetResponse, CurrentRoundResponse } from '@/lib/types';
+import { RoundStatus, BetSide, BetStatus, Prisma } from '@prisma/client';
+
+/**
+ * POST /api/bets
+ * 
+ * Places a new bet on an open round
+ * 
+ * Body: {
+ *   symbol: string,
+ *   roundId: string,
+ *   side: 'GREEN' | 'RED',
+ *   amount: number,
+ *   walletAddress: string
+ * }
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const body: PlaceBetRequest = await request.json();
+    
+    // Validate required fields
+    const { symbol, roundId, side, amount, walletAddress } = body;
+    
+    if (!symbol || !roundId || !side || amount === undefined || !walletAddress) {
+      return NextResponse.json(
+        { error: 'Missing required fields: symbol, roundId, side, amount, walletAddress' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate symbol
+    if (!SUPPORTED_SYMBOLS.includes(symbol as any)) {
+      return NextResponse.json(
+        { error: `Invalid symbol. Supported symbols: ${SUPPORTED_SYMBOLS.join(', ')}` },
+        { status: 400 }
+      );
+    }
+    
+    // Validate side
+    if (side !== 'GREEN' && side !== 'RED') {
+      return NextResponse.json(
+        { error: 'Invalid side. Must be GREEN or RED' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate amount
+    if (typeof amount !== 'number' || amount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid amount. Must be a positive number' },
+        { status: 400 }
+      );
+    }
+    
+    // Validate wallet address (basic check)
+    if (typeof walletAddress !== 'string' || walletAddress.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Invalid wallet address' },
+        { status: 400 }
+      );
+    }
+    
+    // Find the round
+    const round = await prisma.round.findFirst({
+      where: {
+        id: roundId,
+        symbol,
+      },
+    });
+    
+    if (!round) {
+      return NextResponse.json(
+        { error: 'Round not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Check if round is OPEN
+    if (round.status !== RoundStatus.OPEN) {
+      return NextResponse.json(
+        { error: `Cannot place bet. Round is ${round.status}` },
+        { status: 400 }
+      );
+    }
+    
+    // Create bet and update round totals in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the bet
+      const bet = await tx.bet.create({
+        data: {
+          roundId,
+          walletAddress: walletAddress.trim(),
+          side: side as BetSide,
+          amount: new Prisma.Decimal(amount.toFixed(8)),
+          payout: new Prisma.Decimal(0),
+          status: BetStatus.PENDING,
+        },
+      });
+      
+      // Update round totals
+      const updateData: any = {};
+      if (side === 'GREEN') {
+        updateData.totalGreen = {
+          increment: new Prisma.Decimal(amount.toFixed(8)),
+        };
+      } else {
+        updateData.totalRed = {
+          increment: new Prisma.Decimal(amount.toFixed(8)),
+        };
+      }
+      
+      const updatedRound = await tx.round.update({
+        where: { id: roundId },
+        data: updateData,
+      });
+      
+      return { bet, updatedRound };
+    });
+    
+    // Calculate live multipliers for response
+    const V = parseFloat(result.updatedRound.totalGreen.toString());
+    const R = parseFloat(result.updatedRound.totalRed.toString());
+    const B = parseFloat(result.updatedRound.bonusBoost.toString());
+    const f = parseFloat(result.updatedRound.feeRate.toString());
+    
+    const L = V + R;
+    const Fee = L * f;
+    const D = L + B - Fee;
+    
+    let multiplierGreen: string | null = null;
+    let multiplierRed: string | null = null;
+    
+    if (V > 0) {
+      multiplierGreen = (D / V).toFixed(4);
+    }
+    if (R > 0) {
+      multiplierRed = (D / R).toFixed(4);
+    }
+    
+    const now = new Date();
+    const timeRemaining = Math.max(0, result.updatedRound.startTime.getTime() - now.getTime());
+    
+    const response: PlaceBetResponse = {
+      bet: {
+        id: result.bet.id,
+        roundId: result.bet.roundId,
+        walletAddress: result.bet.walletAddress,
+        side: result.bet.side,
+        amount: result.bet.amount.toString(),
+        payout: result.bet.payout.toString(),
+        status: result.bet.status,
+        createdAt: result.bet.createdAt.toISOString(),
+      },
+      round: {
+        id: result.updatedRound.id,
+        symbol: result.updatedRound.symbol,
+        timeframe: result.updatedRound.timeframe,
+        startTime: result.updatedRound.startTime.toISOString(),
+        endTime: result.updatedRound.endTime.toISOString(),
+        status: result.updatedRound.status,
+        totalGreen: result.updatedRound.totalGreen.toString(),
+        totalRed: result.updatedRound.totalRed.toString(),
+        bonusBoost: result.updatedRound.bonusBoost.toString(),
+        feeRate: result.updatedRound.feeRate.toString(),
+        multiplierGreen,
+        multiplierRed,
+        timeRemaining,
+      },
+    };
+    
+    return NextResponse.json(response, { status: 201 });
+    
+  } catch (error) {
+    console.error('Error placing bet:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+

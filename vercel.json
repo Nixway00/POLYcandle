@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/run-scheduler",
+      "schedule": "*/1 * * * *"
+    }
+  ]
+}
+
