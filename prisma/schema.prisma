@@ -68,21 +68,32 @@ model Round {
 }
 
 model Bet {
-  id             String     @id @default(cuid())
-  roundId        String
-  walletAddress  String
-  side           BetSide
-  amount         Decimal    @db.Decimal(20, 8)
-  payout         Decimal    @default(0) @db.Decimal(20, 8)
-  status         BetStatus  @default(PENDING)
+  id                    String     @id @default(cuid())
+  roundId               String
+  walletAddress         String
+  side                  BetSide
+  amount                Decimal    @db.Decimal(20, 8)  // Always in USDC
+  payout                Decimal    @default(0) @db.Decimal(20, 8)
+  status                BetStatus  @default(PENDING)
   
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  // Payment tracking
+  transactionSignature  String?    // Solana transaction ID
+  paidToken             String?    // Token used for payment (SOL, USDC, BONK, etc)
+  paidAmount            Decimal?   @db.Decimal(20, 8)  // Amount in original token
+  paymentMethod         String     @default("wallet")  // "wallet" or "x402"
+  
+  // User identity
+  username              String?    // Display name (optional)
+  isAnonymous           Boolean    @default(false)
+  
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
   
   // Relations
-  round          Round      @relation(fields: [roundId], references: [id])
+  round                 Round      @relation(fields: [roundId], references: [id])
   
   @@index([roundId])
   @@index([walletAddress])
+  @@index([createdAt])
 }
 

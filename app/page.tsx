@@ -7,6 +7,7 @@ import AssetSelector from '@/components/AssetSelector';
 import TradingViewWidget from '@/components/TradingViewWidget';
 import CurrentRound from '@/components/CurrentRound';
 import RoundHistory from '@/components/RoundHistory';
+import LiveBetsFeed from '@/components/LiveBetsFeed';
 
 export default function Home() {
   const [selectedSymbol, setSelectedSymbol] = useState<SupportedSymbol>('BTCUSDT');
@@ -22,19 +23,26 @@ export default function Home() {
           onSelectSymbol={setSelectedSymbol}
         />
         
-        {/* TradingView Chart */}
-        <div className="mt-8">
-          <TradingViewWidget symbol={selectedSymbol} />
-        </div>
-        
-        {/* Current Round & Betting */}
-        <div className="mt-8">
-          <CurrentRound symbol={selectedSymbol} />
-        </div>
-        
-        {/* Round History */}
-        <div className="mt-8">
-          <RoundHistory symbol={selectedSymbol} />
+        {/* Main Layout with Sidebar */}
+        <div className="mt-8 grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Main Content - 3 columns */}
+          <div className="lg:col-span-3 space-y-8">
+            {/* TradingView Chart */}
+            <TradingViewWidget symbol={selectedSymbol} />
+            
+            {/* Current Round & Betting */}
+            <CurrentRound symbol={selectedSymbol} />
+            
+            {/* Round History */}
+            <RoundHistory symbol={selectedSymbol} />
+          </div>
+          
+          {/* Live Bets Sidebar - 1 column */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-4">
+              <LiveBetsFeed symbol={selectedSymbol} />
+            </div>
+          </div>
         </div>
       </div>
     </main>
