@@ -72,14 +72,14 @@ export const SUPPORTED_TOKENS: Record<string, TokenInfo> = {
     icon: '🪐',
     coingeckoId: 'jupiter-exchange-solana',
   },
-  PUMP: {
-    symbol: 'PUMP',
-    name: 'Pump.fun',
-    mint: 'PUMPKsqK3hDgvVbGfD7c4vwjJLST1vXFLX7R3s6pump',
-    decimals: 6,
-    icon: '🔥',
-    coingeckoId: 'pump-fun',
-  },
+  // PUMP: {
+  //   symbol: 'PUMP',
+  //   name: 'Pump.fun',
+  //   mint: 'PUMPKsqK3hDgvVbGfD7c4vwjJLST1vXFLX7R3s6pump',
+  //   decimals: 6,
+  //   icon: '🔥',
+  //   coingeckoId: 'pump-fun',
+  // },
 };
 
 /**
@@ -137,85 +137,10 @@ export function fromTokenAmount(lamports: bigint, symbol: string): number {
 }
 
 /**
- * Meme of the Week System
- * Featured meme coins rotate weekly for engagement
- */
-export const MEME_OF_THE_WEEK_TOKENS: Record<string, TokenInfo> = {
-  POPCAT: {
-    symbol: 'POPCAT',
-    name: 'Popcat',
-    mint: '7GCihgDB8fe6KNjn2MYtkzZcRjQy3t9GHdC8uHYmW2hr',
-    decimals: 9,
-    icon: '🐱',
-    coingeckoId: 'popcat',
-  },
-  MEW: {
-    symbol: 'MEW',
-    name: 'Cat in a dogs world',
-    mint: 'MEW1gQWJ3nEXg2qgERiKu7FAFj79PHvQVREQUzScPP5',
-    decimals: 5,
-    icon: '🐈',
-    coingeckoId: 'cat-in-a-dogs-world',
-  },
-  SLERF: {
-    symbol: 'SLERF',
-    name: 'Slerf',
-    mint: '7BgBvyjrZX1YKz4oh9mjb8ZScatkkwb8DzFx7LoiVkM3',
-    decimals: 9,
-    icon: '🦥',
-    coingeckoId: 'slerf',
-  },
-  MYRO: {
-    symbol: 'MYRO',
-    name: 'Myro',
-    mint: 'HhJpBhRRn4g56VsyLuT8DL5Bv31HkXqsrahTTUCZeZg4',
-    decimals: 9,
-    icon: '🐕‍🦺',
-    coingeckoId: 'myro',
-  },
-};
-
-/**
- * Get current "Meme of the Week"
- * Rotates every Monday at 00:00 UTC
- */
-export function getMemeOfTheWeek(): { symbol: string; token: TokenInfo } | null {
-  // Calculate week number from epoch
-  const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const weekNumber = Math.floor((now.getTime() - startOfYear.getTime()) / (7 * 24 * 60 * 60 * 1000));
-  
-  const memeTokens = Object.keys(MEME_OF_THE_WEEK_TOKENS);
-  const index = weekNumber % memeTokens.length;
-  const symbol = memeTokens[index];
-  
-  return {
-    symbol,
-    token: MEME_OF_THE_WEEK_TOKENS[symbol],
-  };
-}
-
-/**
- * Check if a token is the current meme of the week
- */
-export function isMemeOfTheWeek(symbol: string): boolean {
-  const current = getMemeOfTheWeek();
-  return current?.symbol === symbol.toUpperCase();
-}
-
-/**
- * Get all available tokens (core + meme of the week)
+ * Get all available tokens
+ * Simple function - no meme rotation (will be manual via admin)
  */
 export function getAllAvailableTokens(): Record<string, TokenInfo> {
-  const memeOfWeek = getMemeOfTheWeek();
-  
-  if (memeOfWeek) {
-    return {
-      ...SUPPORTED_TOKENS,
-      [memeOfWeek.symbol]: memeOfWeek.token,
-    };
-  }
-  
   return SUPPORTED_TOKENS;
 }
 
