@@ -42,7 +42,7 @@ model Round {
   endTime          DateTime
   status           RoundStatus @default(OPEN)
   
-  // Pool amounts
+  // Pool amounts (ALL IN USDC)
   totalGreen       Decimal     @default(0) @db.Decimal(20, 8)
   totalRed         Decimal     @default(0) @db.Decimal(20, 8)
   
@@ -67,23 +67,59 @@ model Round {
   @@index([status, endTime])
 }
 
+model User {
+  id                String    @id @default(cuid())
+  walletAddress     String    @unique
+  username          String?   // Custom display name
+  avatar            String?   // Avatar/emoji
+  isAnonymous       Boolean   @default(false)
+  
+  // Stats (ALL IN USDC)
+  totalBets         Int       @default(0)
+  totalWins         Int       @default(0)
+  totalLosses       Int       @default(0)
+  totalVolume       Decimal   @default(0) @db.Decimal(20, 8)  // Total USDC bet
+  totalProfit       Decimal   @default(0) @db.Decimal(20, 8)  // Net profit/loss in USDC
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  bets              Bet[]
+  
+  @@index([walletAddress])
+}
+
 model Bet {
   id                    String     @id @default(cuid())
   roundId               String
   walletAddress         String
+  userId                String?    // Reference to User
   side                  BetSide
-  amount                Decimal    @db.Decimal(20, 8)  // Always in USDC
-  payout                Decimal    @default(0) @db.Decimal(20, 8)
+  amount                Decimal    @db.Decimal(20, 8)  // Net amount in pool (USDC, after fees)
+  payout                Decimal    @default(0) @db.Decimal(20, 8)  // Payout in USDC
   status                BetStatus  @default(PENDING)
   
-  // Payment tracking
-  transactionSignature  String?    // Solana transaction ID
-  paidToken             String?    // Token used for payment (SOL, USDC, BONK, etc)
+  // Original Payment Info
+  transactionSignature  String?    // User's payment transaction
+  paidToken             String?    // Token used (SOL, BONK, USDC, etc)
   paidAmount            Decimal?   @db.Decimal(20, 8)  // Amount in original token
   paymentMethod         String     @default("wallet")  // "wallet" or "x402"
   
-  // User identity
-  username              String?    // Display name (optional)
+  // Swap Tracking (null if paid directly in USDC)
+  swapSignature         String?    // Jupiter swap transaction ID
+  estimatedUsdc         Decimal?   @db.Decimal(20, 8)  // Pre-swap quote value
+  actualUsdc            Decimal?   @db.Decimal(20, 8)  // Post-swap actual value
+  slippage              Decimal?   @db.Decimal(10, 4)  // Slippage percentage
+  
+  // Platform Fees
+  platformFee           Decimal    @default(0) @db.Decimal(20, 8)  // Fee taken (USDC)
+  
+  // Payout Tracking
+  payoutSignature       String?    // Payout transaction ID
+  
+  // User identity (for display)
+  username              String?    // Display name snapshot
   isAnonymous           Boolean    @default(false)
   
   createdAt             DateTime   @default(now())
@@ -91,9 +127,12 @@ model Bet {
   
   // Relations
   round                 Round      @relation(fields: [roundId], references: [id])
+  user                  User?      @relation(fields: [userId], references: [id])
   
   @@index([roundId])
   @@index([walletAddress])
+  @@index([userId])
   @@index([createdAt])
+  @@index([paidToken])
 }
 

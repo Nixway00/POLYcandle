@@ -1,22 +1,28 @@
 'use client';
 
+'use client';
+
 import { useState } from 'react';
 import { SUPPORTED_SYMBOLS, SYMBOL_DISPLAY, SupportedSymbol } from '@/lib/types';
-import Header from '@/components/Header';
 import AssetSelector from '@/components/AssetSelector';
 import TradingViewWidget from '@/components/TradingViewWidget';
 import CurrentRound from '@/components/CurrentRound';
 import RoundHistory from '@/components/RoundHistory';
 import LiveBetsFeed from '@/components/LiveBetsFeed';
+import WalletStatusCard from '@/components/WalletStatusCard';
 
 export default function Home() {
   const [selectedSymbol, setSelectedSymbol] = useState<SupportedSymbol>('BTCUSDT');
   
   return (
     <main className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
-      <Header />
       
       <div className="container mx-auto px-4 py-8">
+        {/* Platform Wallet Status */}
+        <div className="mb-8">
+          <WalletStatusCard />
+        </div>
+        
         {/* Asset Selector */}
         <AssetSelector 
           selectedSymbol={selectedSymbol}

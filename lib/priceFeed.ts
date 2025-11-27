@@ -1,19 +1,10 @@
 /**
  * Price Feed Module
  * 
- * This module provides candle OHLC data for supported trading pairs.
+ * REAL IMPLEMENTATION using Binance API
  * 
- * CURRENT IMPLEMENTATION: Mock data with randomized prices
- * 
- * TODO: Replace with real exchange integration
- * 
- * FUTURE INTEGRATION:
- * - Use Binance API: GET /api/v3/klines
- * - Example: https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&startTime=...&endTime=...
- * - Parse response: [timestamp, open, high, low, close, volume, ...]
- * - Add proper error handling and rate limiting
- * - Consider caching mechanism for historical data
- * - Add WebSocket connection for real-time price updates
+ * This module provides actual candle OHLC data from Binance exchange.
+ * No more mock data - these are real market prices!
  */
 
 export interface CandleOHLC {
@@ -23,48 +14,77 @@ export interface CandleOHLC {
   close: number;
 }
 
+interface BinanceKlineResponse {
+  openTime: number;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume: string;
+  closeTime: number;
+  quoteAssetVolume: string;
+  trades: number;
+  takerBuyBaseAsset: string;
+  takerBuyQuoteAsset: string;
+}
+
 /**
- * Fetches OHLC data for a specific candle period
+ * Fetches REAL OHLC data from Binance API
  * 
  * @param symbol - Trading pair (e.g., "BTCUSDT", "ETHUSDT")
  * @param startTime - Candle start time
  * @param endTime - Candle end time
- * @returns Promise with open and close prices
- * 
- * TODO: Replace this mock implementation with real Binance API calls
+ * @returns Promise with real open and close prices from Binance
  */
 export async function getCandleOHLC(
   symbol: string,
   startTime: Date,
   endTime: Date
 ): Promise<Pick<CandleOHLC, 'open' | 'close'>> {
-  // Mock implementation with realistic-looking prices
-  console.log(`[MOCK] Fetching candle for ${symbol} from ${startTime.toISOString()} to ${endTime.toISOString()}`);
-  
-  // Base prices for different symbols (mock)
-  const basePrices: Record<string, number> = {
-    BTCUSDT: 42000,
-    ETHUSDT: 2200,
-    SOLUSDT: 98,
-    ZECUSDT: 35,
-  };
-  
-  const basePrice = basePrices[symbol] || 100;
-  
-  // Generate random price movement (-2% to +2%)
-  const open = basePrice * (1 + (Math.random() - 0.5) * 0.04);
-  const priceChange = (Math.random() - 0.5) * 0.03; // -1.5% to +1.5%
-  const close = open * (1 + priceChange);
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 100));
-  
-  console.log(`[MOCK] Result for ${symbol}: open=${open.toFixed(2)}, close=${close.toFixed(2)}, outcome=${close > open ? 'GREEN' : close < open ? 'RED' : 'DRAW'}`);
-  
-  return {
-    open: parseFloat(open.toFixed(2)),
-    close: parseFloat(close.toFixed(2)),
-  };
+  try {
+    console.log(`[Binance] Fetching real candle for ${symbol} from ${startTime.toISOString()} to ${endTime.toISOString()}`);
+    
+    const startTimeMs = startTime.getTime();
+    const endTimeMs = endTime.getTime();
+    
+    // Binance API endpoint
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&startTime=${startTimeMs}&endTime=${endTimeMs}&limit=1`;
+    
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data || data.length === 0) {
+      throw new Error(`No candle data found for ${symbol} at ${startTime.toISOString()}`);
+    }
+    
+    // Binance kline format: [timestamp, open, high, low, close, volume, ...]
+    const kline = data[0];
+    const open = parseFloat(kline[1]);
+    const close = parseFloat(kline[4]);
+    
+    console.log(`[Binance] ✅ Real data for ${symbol}: open=${open}, close=${close}, outcome=${close > open ? 'GREEN' : close < open ? 'RED' : 'DRAW'}`);
+    
+    return {
+      open,
+      close,
+    };
+    
+  } catch (error) {
+    console.error(`[Binance] ❌ Error fetching candle for ${symbol}:`, error);
+    
+    // In caso di errore, logga e rilancia
+    // NON usare mock data in produzione!
+    throw new Error(`Failed to fetch real price data: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 /**

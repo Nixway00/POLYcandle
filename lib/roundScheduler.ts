@@ -9,10 +9,15 @@
  * This can be called manually via API or integrated with Vercel Cron
  */
 
+import { Connection, PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
+import { getAssociatedTokenAddress, createTransferInstruction, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { prisma } from './prisma';
 import { getCandleOHLC, determineWinner } from './priceFeed';
 import { ACTIVE_SYMBOLS, TIMEFRAME_MS } from './types';
 import { RoundStatus, BetStatus, WinnerSide, Prisma } from '@prisma/client';
+import { getPlatformWallet } from './platformWallet';
+import { SUPPORTED_TOKENS } from './tokens';
+import { autoRefillIfNeeded, getRefillStatus } from './autoRefill';
 
 /**
  * Aligns a timestamp to the nearest 5-minute window start
@@ -114,6 +119,119 @@ export async function lockRoundsIfNeeded(): Promise<void> {
 }
 
 /**
+ * Send USDC payout to winner's wallet
+ */
+async function sendUsdcPayout(
+  connection: Connection,
+  recipientAddress: string,
+  amountUsdc: number
+): Promise<string | null> {
+  try {
+    const platformWallet = getPlatformWallet();
+    const recipient = new PublicKey(recipientAddress);
+    const usdcMint = new PublicKey(SUPPORTED_TOKENS.USDC.mint);
+    
+    // Get associated token accounts
+    const senderTokenAccount = await getAssociatedTokenAddress(
+      usdcMint,
+      platformWallet.publicKey
+    );
+    
+    const recipientTokenAccount = await getAssociatedTokenAddress(
+      usdcMint,
+      recipient
+    );
+    
+    // Convert USDC amount to smallest unit (6 decimals)
+    const amountInSmallestUnit = Math.floor(amountUsdc * Math.pow(10, 6));
+    
+    // Create transfer instruction
+    const transaction = new Transaction().add(
+      createTransferInstruction(
+        senderTokenAccount,
+        recipientTokenAccount,
+        platformWallet.publicKey,
+        amountInSmallestUnit,
+        [],
+        TOKEN_PROGRAM_ID
+      )
+    );
+    
+    // Send transaction
+    const signature = await connection.sendTransaction(transaction, [platformWallet]);
+    
+    // Confirm transaction
+    await connection.confirmTransaction(signature, 'confirmed');
+    
+    console.log(`✅ Sent ${amountUsdc.toFixed(2)} USDC to ${recipientAddress} (${signature})`);
+    
+    return signature;
+  } catch (error) {
+    console.error(`❌ Failed to send ${amountUsdc.toFixed(2)} USDC to ${recipientAddress}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Process payouts for settled bets
+ * Sends USDC to winners and refunded bets
+ */
+async function processPayouts(connection: Connection, bets: any[]): Promise<void> {
+  const betsToProcess = bets.filter(
+    (bet) => 
+      (bet.status === BetStatus.WON || bet.status === BetStatus.REFUNDED) &&
+      parseFloat(bet.payout.toString()) > 0 &&
+      !bet.payoutSignature // Only process unpaid bets
+  );
+  
+  if (betsToProcess.length === 0) {
+    console.log('[Payout] No payouts to process');
+    return;
+  }
+  
+  console.log(`[Payout] Processing ${betsToProcess.length} payout(s)...`);
+  
+  for (const bet of betsToProcess) {
+    const payoutAmount = parseFloat(bet.payout.toString());
+    const signature = await sendUsdcPayout(connection, bet.walletAddress, payoutAmount);
+    
+    if (signature) {
+      // Update bet with payout signature
+      await prisma.bet.update({
+        where: { id: bet.id },
+        data: { payoutSignature: signature },
+      });
+      
+      // Update user stats
+      if (bet.userId && bet.status === BetStatus.WON) {
+        const betAmount = parseFloat(bet.amount.toString());
+        const profit = payoutAmount - betAmount;
+        
+        await prisma.user.update({
+          where: { id: bet.userId },
+          data: {
+            totalWins: { increment: 1 },
+            totalProfit: { increment: new Prisma.Decimal(profit.toFixed(8)) },
+          },
+        });
+      } else if (bet.userId && bet.status === BetStatus.LOST) {
+        const betAmount = parseFloat(bet.amount.toString());
+        
+        await prisma.user.update({
+          where: { id: bet.userId },
+          data: {
+            totalLosses: { increment: 1 },
+            totalProfit: { decrement: new Prisma.Decimal(betAmount.toFixed(8)) },
+          },
+        });
+      }
+    }
+  }
+  
+  console.log('[Payout] Payout processing completed');
+}
+
+/**
  * Settles all LOCKED rounds whose endTime has passed
  * 
  * Settlement process:
@@ -164,16 +282,53 @@ export async function settleRoundsIfNeeded(): Promise<void> {
       let multiplierRed: Prisma.Decimal | null = null;
       
       // 3. Handle different outcomes
+      
+      // Check for unilateral betting (only one side has bets)
+      const hasOnlyGreen = V > 0 && R === 0;
+      const hasOnlyRed = R > 0 && V === 0;
+      
+      if (hasOnlyGreen || hasOnlyRed) {
+        // UNILATERAL: Only one side has bets - refund 98% (keep 2% for gas fees)
+        const refundRate = 0.98;
+        console.log(`[Scheduler] UNILATERAL BETTING DETECTED - refunding ${refundRate * 100}% (2% gas fee)`);
+        
+        for (const bet of round.bets) {
+          const refundAmount = parseFloat(bet.amount.toString()) * refundRate;
+          
+          await prisma.bet.update({
+            where: { id: bet.id },
+            data: {
+              status: BetStatus.REFUNDED,
+              payout: new Prisma.Decimal(refundAmount.toFixed(8)),
+            },
+          });
+        }
+        
+        // Update round as settled with DRAW (used for unilateral refunds)
+        await prisma.round.update({
+          where: { id: round.id },
+          data: {
+            status: RoundStatus.SETTLED,
+            winnerSide: WinnerSide.DRAW, // Mark as DRAW to indicate refund
+            multiplierGreen: null,
+            multiplierRed: null,
+          },
+        });
+        
+        console.log(`[Scheduler] Round ${round.id} refunded (unilateral betting)`);
+        continue; // Skip to next round
+      }
+      
       if (winnerSide === WinnerSide.DRAW) {
-        // DRAW: Refund all bets
-        console.log(`[Scheduler] DRAW - refunding all bets`);
+        // DRAW: Refund all bets 100% (open == close is rare)
+        console.log(`[Scheduler] DRAW - refunding all bets 100%`);
         
         for (const bet of round.bets) {
           await prisma.bet.update({
             where: { id: bet.id },
             data: {
               status: BetStatus.REFUNDED,
-              payout: bet.amount, // Return original amount
+              payout: bet.amount, // Return 100% on price DRAW
             },
           });
         }
@@ -235,6 +390,10 @@ export async function settleRoundsIfNeeded(): Promise<void> {
       
       console.log(`[Scheduler] Round ${round.id} settled successfully`);
       
+      // 5. Process payouts (send USDC to winners)
+      const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+      await processPayouts(connection, round.bets);
+      
     } catch (error) {
       console.error(`[Scheduler] Error settling round ${round.id}:`, error);
       // Continue with other rounds even if one fails
@@ -255,6 +414,21 @@ export async function runScheduler(): Promise<{ success: boolean; message: strin
     await ensureCurrentRounds();
     await lockRoundsIfNeeded();
     await settleRoundsIfNeeded();
+    
+    // Check and auto-refill SOL if needed
+    console.log('[Scheduler] Checking auto-refill status...');
+    const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+    
+    const refillStatus = await getRefillStatus(connection);
+    console.log(`[Scheduler] Wallet status: ${refillStatus.solBalance.toFixed(4)} SOL, ${refillStatus.usdcBalance.toFixed(2)} USDC`);
+    
+    if (refillStatus.needsRefill) {
+      console.log('[Scheduler] SOL below threshold, attempting auto-refill...');
+      const refillResult = await autoRefillIfNeeded(connection);
+      console.log(`[Scheduler] ${refillResult.message}`);
+    } else {
+      console.log('[Scheduler] SOL balance sufficient, no refill needed');
+    }
     
     console.log('[Scheduler] Scheduler run completed successfully');
     

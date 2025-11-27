@@ -1,0 +1,50 @@
+'use client';
+
+import { FC, ReactNode, useMemo } from 'react';
+import { ConnectionProvider, WalletProvider as SolanaWalletProvider } from '@solana/wallet-adapter-react';
+import { WalletAdapterNetwork } from '@solana/wallet-adapter-base';
+import { PhantomWalletAdapter, SolflareWalletAdapter } from '@solana/wallet-adapter-wallets';
+import { WalletModalProvider } from '@solana/wallet-adapter-react-ui';
+import { clusterApiUrl } from '@solana/web3.js';
+
+// Import Solana wallet styles
+import '@solana/wallet-adapter-react-ui/styles.css';
+
+interface WalletProviderProps {
+  children: ReactNode;
+}
+
+export const WalletProvider: FC<WalletProviderProps> = ({ children }) => {
+  // Mainnet for real SOL transactions
+  const network = WalletAdapterNetwork.Mainnet;
+  
+  // Use Helius RPC for better performance and no rate limiting
+  const endpoint = useMemo(() => {
+    const heliusRpc = process.env.NEXT_PUBLIC_HELIUS_RPC;
+    if (heliusRpc) {
+      return heliusRpc;
+    }
+    // Fallback to public RPC (has rate limits)
+    return clusterApiUrl(network);
+  }, [network]);
+  
+  // Initialize wallets
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network }),
+    ],
+    [network]
+  );
+  
+  return (
+    <ConnectionProvider endpoint={endpoint}>
+      <SolanaWalletProvider wallets={wallets} autoConnect>
+        <WalletModalProvider>
+          {children}
+        </WalletModalProvider>
+      </SolanaWalletProvider>
+    </ConnectionProvider>
+  );
+};
+

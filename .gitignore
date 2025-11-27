@@ -29,6 +29,11 @@ yarn-error.log*
 .env.production
 .env.test
 
+# wallet files (NEVER commit!)
+platform-wallet.json
+*.keypair
+*.wallet
+
 # vercel
 .vercel
 

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Connection } from '@solana/web3.js';
 import { prisma } from '@/lib/prisma';
 import { SUPPORTED_SYMBOLS, PlaceBetRequest, PlaceBetResponse, CurrentRoundResponse } from '@/lib/types';
 import { RoundStatus, BetSide, BetStatus, Prisma } from '@prisma/client';
+import { swapToUsdc } from '@/lib/jupiterSwap';
+import { getPlatformWallet } from '@/lib/platformWallet';
 
 /**
  * POST /api/bets
@@ -18,14 +21,25 @@ import { RoundStatus, BetSide, BetStatus, Prisma } from '@prisma/client';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body: PlaceBetRequest = await request.json();
+    const body: any = await request.json();
     
     // Validate required fields
-    const { symbol, roundId, side, amount, walletAddress } = body;
+    const { 
+      symbol, 
+      roundId, 
+      side, 
+      walletAddress,
+      transactionSignature,
+      paidToken,
+      paidAmount,
+      estimatedUsdc,
+      username,
+      isAnonymous
+    } = body;
     
-    if (!symbol || !roundId || !side || amount === undefined || !walletAddress) {
+    if (!symbol || !roundId || !side || !walletAddress || !paidToken || paidAmount === undefined) {
       return NextResponse.json(
-        { error: 'Missing required fields: symbol, roundId, side, amount, walletAddress' },
+        { error: 'Missing required fields: symbol, roundId, side, walletAddress, paidToken, paidAmount' },
         { status: 400 }
       );
     }
@@ -46,10 +60,10 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    // Validate amount
-    if (typeof amount !== 'number' || amount <= 0) {
+    // Validate paid amount
+    if (typeof paidAmount !== 'number' || paidAmount <= 0) {
       return NextResponse.json(
-        { error: 'Invalid amount. Must be a positive number' },
+        { error: 'Invalid paidAmount. Must be a positive number' },
         { status: 400 }
       );
     }
@@ -85,29 +99,106 @@ export async function POST(request: NextRequest) {
       );
     }
     
+    // Execute token swap if needed
+    let swapResult: any = null;
+    let actualUsdc = paidAmount; // Default: if already USDC
+    
+    if (paidToken.toUpperCase() !== 'USDC') {
+      console.log(`🔄 Swapping ${paidAmount} ${paidToken} to USDC...`);
+      
+      try {
+        const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+        const platformWallet = getPlatformWallet();
+        
+        swapResult = await swapToUsdc(
+          connection,
+          platformWallet,
+          paidToken,
+          paidAmount,
+          100 // 1% slippage
+        );
+        
+        if (!swapResult.success) {
+          throw new Error(swapResult.error || 'Swap failed');
+        }
+        
+        actualUsdc = swapResult.outputAmount;
+        console.log(`✅ Swap complete: ${actualUsdc.toFixed(2)} USDC received`);
+      } catch (error) {
+        console.error('Swap error:', error);
+        return NextResponse.json(
+          { error: 'Failed to swap tokens to USDC. Please try again.' },
+          { status: 500 }
+        );
+      }
+    }
+    
+    // Calculate platform fee (6% of USDC value)
+    const FEE_RATE = 0.06; // 6%
+    const platformFee = actualUsdc * FEE_RATE;
+    const netAmount = actualUsdc - platformFee; // Amount to add to pool
+    
+    console.log(`💰 Bet value: ${actualUsdc.toFixed(2)} USDC, Fee: ${platformFee.toFixed(2)} USDC, Net: ${netAmount.toFixed(2)} USDC`);
+    
     // Create bet and update round totals in a transaction
     const result = await prisma.$transaction(async (tx) => {
+      // Find or create user
+      const user = await tx.user.upsert({
+        where: { walletAddress: walletAddress.trim() },
+        update: {
+          totalBets: { increment: 1 },
+          totalVolume: { increment: new Prisma.Decimal(netAmount.toFixed(8)) },
+        },
+        create: {
+          walletAddress: walletAddress.trim(),
+          username: username || null,
+          isAnonymous: isAnonymous || false,
+          totalBets: 1,
+          totalVolume: new Prisma.Decimal(netAmount.toFixed(8)),
+        },
+      });
+
       // Create the bet
       const bet = await tx.bet.create({
         data: {
           roundId,
           walletAddress: walletAddress.trim(),
+          userId: user.id,
           side: side as BetSide,
-          amount: new Prisma.Decimal(amount.toFixed(8)),
+          amount: new Prisma.Decimal(netAmount.toFixed(8)), // Net amount in pool (USDC)
           payout: new Prisma.Decimal(0),
           status: BetStatus.PENDING,
+          
+          // Original payment info
+          transactionSignature: transactionSignature || null,
+          paidToken: paidToken,
+          paidAmount: new Prisma.Decimal(paidAmount.toFixed(8)),
+          paymentMethod: transactionSignature ? 'wallet' : 'test',
+          
+          // Swap tracking
+          swapSignature: swapResult?.signature || null,
+          estimatedUsdc: estimatedUsdc ? new Prisma.Decimal(estimatedUsdc.toFixed(8)) : null,
+          actualUsdc: new Prisma.Decimal(actualUsdc.toFixed(8)),
+          slippage: swapResult?.slippage ? new Prisma.Decimal(swapResult.slippage.toFixed(4)) : null,
+          
+          // Fee
+          platformFee: new Prisma.Decimal(platformFee.toFixed(8)),
+          
+          // User display info
+          username: username || null,
+          isAnonymous: isAnonymous || false,
         },
       });
       
-      // Update round totals
+      // Update round totals (with net USDC amount)
       const updateData: any = {};
       if (side === 'GREEN') {
         updateData.totalGreen = {
-          increment: new Prisma.Decimal(amount.toFixed(8)),
+          increment: new Prisma.Decimal(netAmount.toFixed(8)),
         };
       } else {
         updateData.totalRed = {
-          increment: new Prisma.Decimal(amount.toFixed(8)),
+          increment: new Prisma.Decimal(netAmount.toFixed(8)),
         };
       }
       

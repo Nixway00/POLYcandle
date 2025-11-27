@@ -6,10 +6,13 @@ import { SupportedSymbol } from '@/lib/types';
 interface LiveBet {
   id: string;
   username: string | null;
+  avatar: string | null;
   isAnonymous: boolean;
+  walletAddress: string | null;
   side: 'GREEN' | 'RED';
-  amount: string;
+  amount: string; // Net USDC amount in pool
   paidToken: string | null;
+  paidAmount: string | null; // Original amount paid
   createdAt: string;
 }
 
@@ -49,12 +52,20 @@ export default function LiveBetsFeed({ symbol, roundId }: LiveBetsFeedProps) {
     return () => clearInterval(interval);
   }, [symbol, roundId]);
 
-  const getDisplayName = (bet: LiveBet) => {
-    if (bet.isAnonymous) return '🕶️ Anonymous';
-    if (bet.username) return bet.username;
-    // Truncate wallet address
-    const wallet = bet.id.slice(0, 6) + '...' + bet.id.slice(-4);
-    return wallet;
+  const getDisplayInfo = (bet: LiveBet) => {
+    if (bet.isAnonymous) {
+      return {
+        avatar: '🕶️',
+        name: 'Anonymous',
+      };
+    }
+    
+    const avatar = bet.avatar || '🎯';
+    const name = bet.username || (bet.walletAddress
+      ? bet.walletAddress.slice(0, 6) + '...' + bet.walletAddress.slice(-4)
+      : 'User');
+    
+    return { avatar, name };
   };
 
   const formatTime = (dateString: string) => {
@@ -66,12 +77,29 @@ export default function LiveBetsFeed({ symbol, roundId }: LiveBetsFeedProps) {
     });
   };
 
-  const formatAmount = (amount: string, token: string | null) => {
-    const amt = parseFloat(amount);
-    if (token && token !== 'USDC') {
-      return `${amt.toFixed(2)} ${token} (~${amt.toFixed(2)} USDC)`;
+  const formatAmount = (bet: LiveBet) => {
+    const usdcValue = parseFloat(bet.amount);
+    
+    // If paid with USDC or no token info, just show USDC
+    if (!bet.paidToken || bet.paidToken === 'USDC' || !bet.paidAmount) {
+      return `${usdcValue.toFixed(2)} USDC`;
     }
-    return `${amt.toFixed(2)} USDC`;
+    
+    // Show original token paid + USDC value
+    const paidAmount = parseFloat(bet.paidAmount);
+    const tokenIcon = bet.paidToken === 'SOL' ? '◎' : 
+                      bet.paidToken === 'BONK' ? '🐕' : '';
+    
+    return (
+      <div className="space-y-1">
+        <div className="text-white">
+          {tokenIcon} {paidAmount.toFixed(4)} {bet.paidToken}
+        </div>
+        <div className="text-xs text-gray-400">
+          ≈ ${usdcValue.toFixed(2)} USDC
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -89,39 +117,45 @@ export default function LiveBetsFeed({ symbol, roundId }: LiveBetsFeedProps) {
             No bets yet. Be the first! 🚀
           </div>
         ) : (
-          bets.map((bet) => (
-            <div
-              key={bet.id}
-              className={`p-3 rounded-lg border-l-4 ${
-                bet.side === 'GREEN'
-                  ? 'bg-green-900/20 border-green-500'
-                  : 'bg-red-900/20 border-red-500'
-              }`}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <span className="text-sm font-semibold truncate max-w-[150px]">
-                  {getDisplayName(bet)}
-                </span>
-                <span
-                  className={`text-xs font-bold px-2 py-1 rounded ${
-                    bet.side === 'GREEN'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-red-600 text-white'
-                  }`}
-                >
-                  {bet.side}
-                </span>
+          bets.map((bet) => {
+            const displayInfo = getDisplayInfo(bet);
+            return (
+              <div
+                key={bet.id}
+                className={`p-3 rounded-lg border-l-4 ${
+                  bet.side === 'GREEN'
+                    ? 'bg-green-900/20 border-green-500'
+                    : 'bg-red-900/20 border-red-500'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <div className="flex items-center gap-2 truncate max-w-[150px]">
+                    <span className="text-lg">{displayInfo.avatar}</span>
+                    <span className="text-sm font-semibold truncate">
+                      {displayInfo.name}
+                    </span>
+                  </div>
+                  <span
+                    className={`text-xs font-bold px-2 py-1 rounded ${
+                      bet.side === 'GREEN'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-red-600 text-white'
+                    }`}
+                  >
+                    {bet.side}
+                  </span>
+                </div>
+              
+              <div className="text-sm font-mono">
+                {formatAmount(bet)}
               </div>
               
-              <div className="text-sm font-mono text-white">
-                {formatAmount(bet.amount, bet.paidToken)}
+                <div className="text-xs text-gray-400 mt-1">
+                  {formatTime(bet.createdAt)}
+                </div>
               </div>
-              
-              <div className="text-xs text-gray-400 mt-1">
-                {formatTime(bet.createdAt)}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

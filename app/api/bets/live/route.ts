@@ -72,6 +72,11 @@ export async function GET(request: NextRequest) {
         paidAmount: true,
         transactionSignature: true,
         createdAt: true,
+        user: {
+          select: {
+            avatar: true,
+          },
+        },
       },
     });
     
@@ -79,6 +84,7 @@ export async function GET(request: NextRequest) {
     const formattedBets = bets.map(bet => ({
       id: bet.id,
       username: bet.username,
+      avatar: bet.user?.avatar || null,
       isAnonymous: bet.isAnonymous,
       walletAddress: bet.isAnonymous ? null : bet.walletAddress,
       side: bet.side,

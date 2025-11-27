@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { SupportedSymbol, CurrentRoundResponse } from '@/lib/types';
-import BettingForm from './BettingForm';
+import BettingFormWithWallet from './BettingFormWithWallet';
 
 interface CurrentRoundProps {
   symbol: SupportedSymbol;
@@ -133,20 +133,20 @@ export default function CurrentRound({ symbol }: CurrentRoundProps) {
           <div className="bg-green-900/20 border border-green-500 rounded-lg p-4">
             <p className="text-sm text-gray-400">GREEN Pool</p>
             <p className="text-2xl font-bold text-green-400">
-              {parseFloat(round.totalGreen).toFixed(2)}
+              ${parseFloat(round.totalGreen).toFixed(2)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Multiplier: {round.multiplierGreen || 'N/A'}x
+            <p className="text-xs text-gray-400 mt-1">
+              {round.multiplierGreen ? `${round.multiplierGreen}x payout` : 'USDC value'}
             </p>
           </div>
           
           <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
             <p className="text-sm text-gray-400">RED Pool</p>
             <p className="text-2xl font-bold text-red-400">
-              {parseFloat(round.totalRed).toFixed(2)}
+              ${parseFloat(round.totalRed).toFixed(2)}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Multiplier: {round.multiplierRed || 'N/A'}x
+            <p className="text-xs text-gray-400 mt-1">
+              {round.multiplierRed ? `${round.multiplierRed}x payout` : 'USDC value'}
             </p>
           </div>
         </div>
@@ -171,10 +171,19 @@ export default function CurrentRound({ symbol }: CurrentRoundProps) {
             <span>GREEN: {greenPercentage.toFixed(1)}%</span>
             <span>RED: {redPercentage.toFixed(1)}%</span>
           </div>
+          
+          {/* Warning for unilateral betting */}
+          {(parseFloat(round.totalGreen) === 0 || parseFloat(round.totalRed) === 0) && totalPool > 0 && (
+            <div className="mt-3 bg-yellow-900/20 border border-yellow-600 rounded p-2">
+              <p className="text-xs text-yellow-400">
+                ⚠️ <strong>One-sided betting:</strong> If no one bets on the other side, all bets will be refunded at 98%.
+              </p>
+            </div>
+          )}
         </div>
         
         {/* Betting Form */}
-        <BettingForm 
+        <BettingFormWithWallet 
           round={round}
           onBetPlaced={fetchCurrentRound}
         />
