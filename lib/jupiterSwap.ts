@@ -4,7 +4,7 @@
  */
 
 import { Connection, Keypair, VersionedTransaction, PublicKey } from '@solana/web3.js';
-import { getTokenInfo, SUPPORTED_TOKENS } from './tokens';
+import { getTokenInfo, getAllAvailableTokens, SUPPORTED_TOKENS } from './tokens';
 
 const JUPITER_API = 'https://quote-api.jup.ag/v6';
 const USDC_MINT = SUPPORTED_TOKENS.USDC.mint;
@@ -159,12 +159,16 @@ export async function estimateUsdcValue(
 ): Promise<number> {
   try {
     // If already USDC, return as-is
-    if (tokenSymbol.toUpperCase() === 'USDC') {
+    if (tokenSymbol.toUpperCase() === 'USDC' || tokenSymbol.toUpperCase() === 'USDT') {
       return tokenAmount;
     }
 
-    const tokenInfo = getTokenInfo(tokenSymbol);
+    // Get token info from all available tokens (includes meme of the week)
+    const allTokens = getAllAvailableTokens();
+    const tokenInfo = allTokens[tokenSymbol.toUpperCase()];
+    
     if (!tokenInfo) {
+      console.error(`Token ${tokenSymbol} not found in available tokens`);
       throw new Error(`Token ${tokenSymbol} not supported`);
     }
 
@@ -173,15 +177,20 @@ export async function estimateUsdcValue(
       Math.floor(tokenAmount * Math.pow(10, tokenInfo.decimals))
     );
 
+    console.log(`Estimating ${tokenAmount} ${tokenSymbol} → USDC...`);
+
     // Get quote
     const quote = await getSwapQuote(tokenInfo.mint, amountInSmallestUnit);
     if (!quote) {
+      console.error('Failed to get quote from Jupiter');
       throw new Error('Failed to get swap quote');
     }
 
     // Convert USDC output to decimal
     const usdcDecimals = SUPPORTED_TOKENS.USDC.decimals;
     const usdcValue = Number(quote.outAmount) / Math.pow(10, usdcDecimals);
+
+    console.log(`✅ Estimate: ${usdcValue.toFixed(2)} USDC`);
 
     return usdcValue;
   } catch (error) {
@@ -202,8 +211,8 @@ export async function swapToUsdc(
   slippageBps: number = 100
 ): Promise<SwapResult & { estimatedUsdc: number }> {
   try {
-    // If already USDC, no swap needed
-    if (tokenSymbol.toUpperCase() === 'USDC') {
+    // If already USDC/USDT, no swap needed
+    if (tokenSymbol.toUpperCase() === 'USDC' || tokenSymbol.toUpperCase() === 'USDT') {
       return {
         success: true,
         inputAmount: tokenAmount,
@@ -213,7 +222,10 @@ export async function swapToUsdc(
       };
     }
 
-    const tokenInfo = getTokenInfo(tokenSymbol);
+    // Get token info from all available tokens
+    const allTokens = getAllAvailableTokens();
+    const tokenInfo = allTokens[tokenSymbol.toUpperCase()];
+    
     if (!tokenInfo) {
       throw new Error(`Token ${tokenSymbol} not supported`);
     }

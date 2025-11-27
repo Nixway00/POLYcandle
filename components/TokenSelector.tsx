@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SUPPORTED_TOKENS, TokenInfo } from '@/lib/tokens';
+import { getAllAvailableTokens, getMemeOfTheWeek, TokenInfo } from '@/lib/tokens';
 
 interface TokenSelectorProps {
   selectedToken: string;
@@ -16,8 +16,10 @@ export default function TokenSelector({
 }: TokenSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   
-  const tokens = Object.values(SUPPORTED_TOKENS);
-  const selected = SUPPORTED_TOKENS[selectedToken];
+  const allTokens = getAllAvailableTokens();
+  const tokens = Object.values(allTokens);
+  const selected = allTokens[selectedToken];
+  const memeOfWeek = getMemeOfTheWeek();
 
   return (
     <div className="relative">
@@ -67,40 +69,60 @@ export default function TokenSelector({
           
           {/* Token List */}
           <div className="absolute z-20 w-full mt-2 bg-gray-800 border border-gray-700 rounded-lg shadow-lg overflow-hidden">
-            {tokens.map((token) => (
-              <button
-                key={token.symbol}
-                type="button"
-                onClick={() => {
-                  onTokenChange(token.symbol);
-                  setIsOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 transition-colors ${
-                  token.symbol === selectedToken ? 'bg-gray-700' : ''
-                }`}
-              >
-                <span className="text-2xl">{token.icon}</span>
-                <div className="text-left flex-1">
-                  <div className="font-semibold text-white">{token.symbol}</div>
-                  <div className="text-xs text-gray-400">{token.name}</div>
-                </div>
-                {token.symbol === selectedToken && (
-                  <svg
-                    className="w-5 h-5 text-green-500"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                )}
-              </button>
-            ))}
+            {tokens.map((token) => {
+              const isStablecoin = ['USDC', 'USDT'].includes(token.symbol);
+              const isMemeWeek = memeOfWeek?.symbol === token.symbol;
+              const feeRate = isStablecoin ? 3 : 6;
+              
+              return (
+                <button
+                  key={token.symbol}
+                  type="button"
+                  onClick={() => {
+                    onTokenChange(token.symbol);
+                    setIsOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-700 transition-colors ${
+                    token.symbol === selectedToken ? 'bg-gray-700' : ''
+                  } ${isMemeWeek ? 'ring-2 ring-yellow-500' : ''}`}
+                >
+                  <span className="text-2xl">{token.icon}</span>
+                  <div className="text-left flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-white">{token.symbol}</span>
+                      {isMemeWeek && (
+                        <span className="text-xs px-2 py-0.5 rounded bg-yellow-600 text-white animate-pulse">
+                          🔥 MEME OF THE WEEK
+                        </span>
+                      )}
+                      <span className={`text-xs px-2 py-0.5 rounded ${
+                        isStablecoin 
+                          ? 'bg-green-600 text-white' 
+                          : 'bg-gray-600 text-gray-300'
+                      }`}>
+                        {feeRate}% fee
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-400">{token.name}</div>
+                  </div>
+                  {token.symbol === selectedToken && (
+                    <svg
+                      className="w-5 h-5 text-green-500"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M5 13l4 4L19 7"
+                      />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </>
       )}

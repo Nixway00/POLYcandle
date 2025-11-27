@@ -133,12 +133,15 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // Calculate platform fee (6% of USDC value)
-    const FEE_RATE = 0.06; // 6%
+    // Calculate platform fee (variable by token)
+    // Stablecoins (USDC/USDT): 3% - no swap cost
+    // Other tokens: 6% - includes swap cost
+    const isStablecoin = ['USDC', 'USDT'].includes(paidToken.toUpperCase());
+    const FEE_RATE = isStablecoin ? 0.03 : 0.06;
     const platformFee = actualUsdc * FEE_RATE;
     const netAmount = actualUsdc - platformFee; // Amount to add to pool
     
-    console.log(`💰 Bet value: ${actualUsdc.toFixed(2)} USDC, Fee: ${platformFee.toFixed(2)} USDC, Net: ${netAmount.toFixed(2)} USDC`);
+    console.log(`💰 Bet value: ${actualUsdc.toFixed(2)} USDC, Fee: ${platformFee.toFixed(2)} USDC (${(FEE_RATE * 100).toFixed(0)}%), Net: ${netAmount.toFixed(2)} USDC`);
     
     // Create bet and update round totals in a transaction
     const result = await prisma.$transaction(async (tx) => {

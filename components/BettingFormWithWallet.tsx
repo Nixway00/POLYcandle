@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { getAssociatedTokenAddress, createTransferInstruction, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import { CurrentRoundResponse } from '@/lib/types';
 import UserProfileSetup from './UserProfileSetup';
 import TokenSelector from './TokenSelector';
+import { getTokenInfo, getAllAvailableTokens } from '@/lib/tokens';
 
 interface BettingFormProps {
   round: CurrentRoundResponse;
@@ -113,25 +115,65 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
       setIsSubmitting(true);
       setMessage(null);
       
-      // Create transaction to send tokens to platform wallet
-      // For now, only SOL is supported (TODO: SPL token transfers)
-      if (selectedToken !== 'SOL') {
-        throw new Error('Only SOL payments are supported in this version. SPL token support coming soon!');
+      const tokenInfo = getTokenInfo(selectedToken);
+      if (!tokenInfo) {
+        throw new Error(`Token ${selectedToken} not supported`);
       }
       
-      const transaction = new Transaction().add(
-        SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: new PublicKey(PLATFORM_WALLET),
-          lamports: amountNum * LAMPORTS_PER_SOL, // Convert SOL to lamports
-        })
-      );
+      const platformWalletPubkey = new PublicKey(PLATFORM_WALLET);
+      const transaction = new Transaction();
+      
+      // Handle SOL (native) vs SPL tokens
+      if (selectedToken === 'SOL') {
+        // Native SOL transfer
+        transaction.add(
+          SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: platformWalletPubkey,
+            lamports: amountNum * LAMPORTS_PER_SOL,
+          })
+        );
+      } else {
+        // SPL Token transfer (USDC, BONK, etc.)
+        const tokenMint = new PublicKey(tokenInfo.mint);
+        
+        // Get associated token accounts
+        const fromTokenAccount = await getAssociatedTokenAddress(
+          tokenMint,
+          publicKey
+        );
+        
+        const toTokenAccount = await getAssociatedTokenAddress(
+          tokenMint,
+          platformWalletPubkey
+        );
+        
+        // Convert amount to smallest unit
+        const amountInSmallestUnit = Math.floor(
+          amountNum * Math.pow(10, tokenInfo.decimals)
+        );
+        
+        // Create transfer instruction
+        transaction.add(
+          createTransferInstruction(
+            fromTokenAccount,
+            toTokenAccount,
+            publicKey,
+            amountInSmallestUnit,
+            [],
+            TOKEN_PROGRAM_ID
+          )
+        );
+      }
       
       // Send transaction
       const signature = await sendTransaction(transaction, connection);
       
       // Wait for confirmation
-      setMessage({ type: 'success', text: 'Payment sent! Processing swap and bet...' });
+      setMessage({ 
+        type: 'success', 
+        text: `Payment sent! ${selectedToken !== 'USDC' ? 'Processing swap and ' : ''}placing bet...` 
+      });
       
       await connection.confirmTransaction(signature, 'confirmed');
       
@@ -312,12 +354,20 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
       )}
       
       <div className="bg-blue-900/20 border border-blue-500 rounded-lg p-3">
-        <p className="text-xs text-blue-300 mb-1">
-          💎 <strong>Multi-Token Betting:</strong> Bet with SOL, USDC, or BONK!
+        <p className="text-xs text-blue-300 mb-2">
+          💎 <strong>Multi-Token Betting:</strong> Bet with 8+ tokens!
         </p>
-        <p className="text-xs text-blue-400">
-          All bets are converted to USDC. Winners receive automatic USDC payouts.
+        <p className="text-xs text-blue-400 mb-2">
+          All bets converted to USDC. Winners receive automatic USDC payouts.
         </p>
+        <div className="flex gap-2 text-xs">
+          <div className="flex-1 bg-green-900/30 border border-green-600 rounded px-2 py-1">
+            <span className="text-green-400 font-bold">USDC/USDT: 3% fee</span>
+          </div>
+          <div className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1">
+            <span className="text-gray-300">Others: 6% fee</span>
+          </div>
+        </div>
       </div>
       
       <div className="bg-yellow-900/20 border border-yellow-500 rounded-lg p-3">
