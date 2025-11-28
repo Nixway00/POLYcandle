@@ -34,8 +34,8 @@ HELIUS_RPC=https://mainnet.helius-rpc.com/?api-key=YOUR_HELIUS_API_KEY
 PLATFORM_WALLET_PRIVATE_KEY=your_base58_private_key_here
 
 # Public keys - safe to expose
-PLATFORM_WALLET_PUBLIC_KEY=ANARPXURjPnZGa4beymeJMP1iBtM2BenjznSMPadLfKw
-NEXT_PUBLIC_PLATFORM_WALLET_PUBLIC_KEY=ANARPXURjPnZGa4beymeJMP1iBtM2BenjznSMPadLfKw
+PLATFORM_WALLET_PUBLIC_KEY=your_platform_wallet_public_key_here
+NEXT_PUBLIC_PLATFORM_WALLET_PUBLIC_KEY=your_platform_wallet_public_key_here
 ```
 
 ---
@@ -133,12 +133,12 @@ const connection = new Connection(process.env.HELIUS_RPC!);
 ### `PLATFORM_WALLET_PUBLIC_KEY`
 - **Type:** Server-side
 - **Purpose:** Public address of platform wallet
-- **Example:** `ANARPXURjPnZGa4beymeJMP1iBtM2BenjznSMPadLfKw`
+- **Example:** `YourPlatformWalletPublicKey123...`
 
 ### `NEXT_PUBLIC_PLATFORM_WALLET_PUBLIC_KEY`
 - **Type:** Client-side (public)
 - **Purpose:** Platform wallet address for client to send payments
-- **Example:** `ANARPXURjPnZGa4beymeJMP1iBtM2BenjznSMPadLfKw`
+- **Example:** `YourPlatformWalletPublicKey123...`
 - **✅ Safe to expose (it's a public address)**
 
 ---
