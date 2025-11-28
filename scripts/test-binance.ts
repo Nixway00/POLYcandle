@@ -27,8 +27,9 @@ async function testBinance() {
       const ohlc = await getCandleOHLC(symbol, startTime, endTime);
       const winner = determineWinner(ohlc);
       
-      const change = ((ohlc.close - ohlc.open) / ohlc.open * 100).toFixed(2);
-      const changeSign = change >= 0 ? '+' : '';
+      const changeNum = ((ohlc.close - ohlc.open) / ohlc.open * 100);
+      const change = changeNum.toFixed(2);
+      const changeSign = changeNum >= 0 ? '+' : '';
       
       console.log(`   Open:   $${ohlc.open.toLocaleString()}`);
       console.log(`   Close:  $${ohlc.close.toLocaleString()}`);
