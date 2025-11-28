@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
       console.log(`🔄 Swapping ${paidAmount} ${paidToken} to USDC...`);
       
       try {
-        const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+        const connection = new Connection(process.env.HELIUS_RPC!);
         const platformWallet = getPlatformWallet();
         
         swapResult = await swapToUsdc(

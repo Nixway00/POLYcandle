@@ -10,7 +10,7 @@ import { getRefillStatus, autoRefillIfNeeded } from '@/lib/autoRefill';
 
 export async function GET(request: NextRequest) {
   try {
-    const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+    const connection = new Connection(process.env.HELIUS_RPC!);
     const status = await getRefillStatus(connection);
 
     return NextResponse.json({
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+    const connection = new Connection(process.env.HELIUS_RPC!);
     
     console.log('🔧 Manual refill triggered...');
     const result = await autoRefillIfNeeded(connection);

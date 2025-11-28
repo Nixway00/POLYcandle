@@ -391,7 +391,7 @@ export async function settleRoundsIfNeeded(): Promise<void> {
       console.log(`[Scheduler] Round ${round.id} settled successfully`);
       
       // 5. Process payouts (send USDC to winners)
-      const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+      const connection = new Connection(process.env.HELIUS_RPC!);
       await processPayouts(connection, round.bets);
       
     } catch (error) {
@@ -417,7 +417,7 @@ export async function runScheduler(): Promise<{ success: boolean; message: strin
     
     // Check and auto-refill SOL if needed
     console.log('[Scheduler] Checking auto-refill status...');
-    const connection = new Connection(process.env.NEXT_PUBLIC_HELIUS_RPC!);
+    const connection = new Connection(process.env.HELIUS_RPC!);
     
     const refillStatus = await getRefillStatus(connection);
     console.log(`[Scheduler] Wallet status: ${refillStatus.solBalance.toFixed(4)} SOL, ${refillStatus.usdcBalance.toFixed(2)} USDC`);
