@@ -61,8 +61,13 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error estimating USDC value:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
     return NextResponse.json(
-      { error: 'Failed to estimate USDC value' },
+      { 
+        error: 'Failed to estimate USDC value',
+        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+      },
       { status: 500 }
     );
   }
