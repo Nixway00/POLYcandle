@@ -6,6 +6,12 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
+// Check if DATABASE_URL is configured
+if (!process.env.DATABASE_URL) {
+  console.error('⚠️ DATABASE_URL environment variable is not set!');
+  console.error('Please configure DATABASE_URL in your environment variables.');
+}
+
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({

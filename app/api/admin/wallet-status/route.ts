@@ -13,7 +13,18 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const connection = new Connection(process.env.HELIUS_RPC!);
+    const heliusRpc = process.env.HELIUS_RPC;
+    if (!heliusRpc) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'HELIUS_RPC environment variable not configured',
+        },
+        { status: 500 }
+      );
+    }
+    
+    const connection = new Connection(heliusRpc);
     const status = await getRefillStatus(connection);
 
     return NextResponse.json({
@@ -44,7 +55,18 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const connection = new Connection(process.env.HELIUS_RPC!);
+    const heliusRpc = process.env.HELIUS_RPC;
+    if (!heliusRpc) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'HELIUS_RPC environment variable not configured',
+        },
+        { status: 500 }
+      );
+    }
+    
+    const connection = new Connection(heliusRpc);
     
     console.log('🔧 Manual refill triggered...');
     const result = await autoRefillIfNeeded(connection);
