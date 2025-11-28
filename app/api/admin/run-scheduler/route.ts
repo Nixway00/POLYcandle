@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { runScheduler } from '@/lib/roundScheduler';
 
+// Force dynamic rendering (uses database and Solana)
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/admin/run-scheduler
  * 

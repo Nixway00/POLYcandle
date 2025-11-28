@@ -6,6 +6,9 @@ import { RoundStatus, BetSide, BetStatus, Prisma } from '@prisma/client';
 import { swapToUsdc } from '@/lib/jupiterSwap';
 import { getPlatformWallet } from '@/lib/platformWallet';
 
+// Force dynamic rendering (uses database and Solana connection)
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/bets
  * 

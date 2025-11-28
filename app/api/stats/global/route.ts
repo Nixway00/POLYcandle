@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Force dynamic rendering (uses database)
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/stats/global
  * 

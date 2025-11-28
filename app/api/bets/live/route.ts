@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SUPPORTED_SYMBOLS } from '@/lib/types';
 
+// Force dynamic rendering (uses database)
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/bets/live?roundId=xxx
  * GET /api/bets/live?symbol=BTCUSDT

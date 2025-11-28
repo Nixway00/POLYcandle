@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Force dynamic rendering (uses database)
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/user/profile?wallet=xxx
  * Get or create user profile

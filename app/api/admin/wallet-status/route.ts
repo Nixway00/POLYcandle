@@ -8,6 +8,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Connection } from '@solana/web3.js';
 import { getRefillStatus, autoRefillIfNeeded } from '@/lib/autoRefill';
 
+// Force dynamic rendering (uses Solana connection)
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const connection = new Connection(process.env.HELIUS_RPC!);

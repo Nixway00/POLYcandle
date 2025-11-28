@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { SUPPORTED_SYMBOLS, HistoryRoundResponse } from '@/lib/types';
 import { RoundStatus } from '@prisma/client';
 
+// Force dynamic rendering (uses database)
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/rounds/history?symbol=BTCUSDT&limit=20
  * 
