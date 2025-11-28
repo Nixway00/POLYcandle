@@ -84,7 +84,7 @@ export default function CurrentRound({ symbol }: CurrentRoundProps) {
       <div className="bg-red-900/20 border border-red-500 rounded-lg p-8 text-center">
         <p className="text-red-400">{error}</p>
         <button
-          onClick={fetchCurrentRound}
+          onClick={() => fetchCurrentRound()}
           className="mt-4 px-4 py-2 bg-red-600 hover:bg-red-700 rounded"
         >
           Retry
