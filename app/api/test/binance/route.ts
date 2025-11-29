@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { getCandleOHLC, determineWinner } from '@/lib/priceFeed';
 
+// Force dynamic rendering (calls external API)
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/test/binance
  * 
@@ -27,7 +30,8 @@ export async function GET() {
         const ohlc = await getCandleOHLC(symbol, startTime, endTime);
         const winner = determineWinner(ohlc);
         
-        const change = ((ohlc.close - ohlc.open) / ohlc.open * 100).toFixed(2);
+        const changeNum = ((ohlc.close - ohlc.open) / ohlc.open * 100);
+        const change = changeNum.toFixed(2);
         
         results.push({
           symbol,

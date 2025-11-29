@@ -50,33 +50,80 @@ export async function getCandleOHLC(
     // Binance API endpoint
     const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&startTime=${startTimeMs}&endTime=${endTimeMs}&limit=1`;
     
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
+    console.log(`[Binance] Request URL: ${url}`);
     
-    if (!response.ok) {
-      throw new Error(`Binance API error: ${response.status} ${response.statusText}`);
+    // Add timeout and better error handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Binance] API error response: ${errorText}`);
+        throw new Error(`Binance API error: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (!data || data.length === 0) {
+        // Try to get the most recent candle if exact time not found
+        console.warn(`[Binance] No exact candle found, trying latest candle...`);
+        const latestUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=5m&limit=1`;
+        const latestResponse = await fetch(latestUrl, {
+          headers: { 'Accept': 'application/json' },
+          signal: controller.signal,
+        });
+        
+        if (!latestResponse.ok) {
+          throw new Error(`Binance API error fetching latest: ${latestResponse.status}`);
+        }
+        
+        const latestData = await latestResponse.json();
+        if (!latestData || latestData.length === 0) {
+          throw new Error(`No candle data available for ${symbol}`);
+        }
+        
+        const kline = latestData[0];
+        const open = parseFloat(kline[1]);
+        const close = parseFloat(kline[4]);
+        
+        console.log(`[Binance] ✅ Using latest candle for ${symbol}: open=${open}, close=${close}`);
+        
+        return { open, close };
+      }
+      
+      // Binance kline format: [timestamp, open, high, low, close, volume, ...]
+      const kline = data[0];
+      const open = parseFloat(kline[1]);
+      const close = parseFloat(kline[4]);
+      
+      if (isNaN(open) || isNaN(close)) {
+        throw new Error(`Invalid price data from Binance: open=${kline[1]}, close=${kline[4]}`);
+      }
+      
+      console.log(`[Binance] ✅ Real data for ${symbol}: open=${open}, close=${close}, outcome=${close > open ? 'GREEN' : close < open ? 'RED' : 'DRAW'}`);
+      
+      return {
+        open,
+        close,
+      };
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        throw new Error('Binance API request timeout (10s)');
+      }
+      throw fetchError;
     }
-    
-    const data = await response.json();
-    
-    if (!data || data.length === 0) {
-      throw new Error(`No candle data found for ${symbol} at ${startTime.toISOString()}`);
-    }
-    
-    // Binance kline format: [timestamp, open, high, low, close, volume, ...]
-    const kline = data[0];
-    const open = parseFloat(kline[1]);
-    const close = parseFloat(kline[4]);
-    
-    console.log(`[Binance] ✅ Real data for ${symbol}: open=${open}, close=${close}, outcome=${close > open ? 'GREEN' : close < open ? 'RED' : 'DRAW'}`);
-    
-    return {
-      open,
-      close,
-    };
     
   } catch (error) {
     console.error(`[Binance] ❌ Error fetching candle for ${symbol}:`, error);
