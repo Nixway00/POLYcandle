@@ -177,14 +177,27 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
         
         // Convert amount to smallest unit
         // Example: 100 BONK with 5 decimals = 100 * 10^5 = 10,000,000
+        // We need to handle decimal input correctly
+        // If user enters "100.5", we need to convert it properly
+        const multiplier = Math.pow(10, tokenInfo.decimals);
         const amountInSmallestUnit = BigInt(
-          Math.floor(amountNum * Math.pow(10, tokenInfo.decimals))
+          Math.floor(amountNum * multiplier)
         );
+        
+        // Verify calculation
+        const expectedValue = amountNum * multiplier;
+        const actualValue = Number(amountInSmallestUnit);
         
         console.log(`[Bet] Transferring ${amountNum} ${selectedToken}`);
         console.log(`[Bet] Token decimals: ${tokenInfo.decimals}`);
-        console.log(`[Bet] Amount in smallest unit: ${amountInSmallestUnit.toString()}`);
-        console.log(`[Bet] Calculation: ${amountNum} * 10^${tokenInfo.decimals} = ${amountInSmallestUnit.toString()}`);
+        console.log(`[Bet] Multiplier: 10^${tokenInfo.decimals} = ${multiplier}`);
+        console.log(`[Bet] Expected: ${amountNum} * ${multiplier} = ${expectedValue}`);
+        console.log(`[Bet] Actual (BigInt): ${amountInSmallestUnit.toString()}`);
+        console.log(`[Bet] Verification: ${actualValue === Math.floor(expectedValue) ? '✅ CORRECT' : '❌ MISMATCH'}`);
+        
+        if (actualValue !== Math.floor(expectedValue)) {
+          console.error(`[Bet] ⚠️ Amount conversion mismatch! Expected ${expectedValue}, got ${actualValue}`);
+        }
         
         // Create transfer instruction
         transaction.add(

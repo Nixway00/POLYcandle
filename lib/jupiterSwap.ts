@@ -50,33 +50,47 @@ export async function getSwapQuote(
 
     const url = `${JUPITER_API}/quote?${params}`;
     console.log(`[Jupiter] Requesting quote: ${url}`);
+    console.log(`[Jupiter] Input mint: ${inputMint}, Amount: ${inputAmount.toString()}`);
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Jupiter] Quote API error (${response.status}):`, errorText);
-      throw new Error(`Jupiter API error: ${response.status} - ${errorText}`);
-    }
+    // Add timeout to prevent hanging requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const quote = await response.json();
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
     
-    if (!quote || !quote.outAmount) {
-      console.error('[Jupiter] Invalid quote response:', quote);
-      throw new Error('Invalid quote response from Jupiter');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Jupiter] Quote API error (${response.status}):`, errorText);
+        throw new Error(`Jupiter API error: ${response.status} - ${errorText}`);
+      }
+
+      const quote = await response.json();
+      
+      if (!quote || !quote.outAmount) {
+        console.error('[Jupiter] Invalid quote response:', quote);
+        throw new Error('Invalid quote response from Jupiter');
+      }
+      
+      console.log(`[Jupiter] Quote received: ${quote.outAmount} USDC`);
+      return quote;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        console.error('[Jupiter] Request timeout after 10 seconds');
+        throw new Error('Jupiter API timeout - please try again');
+      }
+      console.error('[Jupiter] Error fetching swap quote:', error);
+      throw error; // Rilancia invece di ritornare null
     }
-    
-    console.log(`[Jupiter] Quote received: ${quote.outAmount} USDC`);
-    return quote;
-  } catch (error) {
-    console.error('[Jupiter] Error fetching swap quote:', error);
-    throw error; // Rilancia invece di ritornare null
-  }
 }
 
 /**
