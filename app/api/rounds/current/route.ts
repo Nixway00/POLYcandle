@@ -14,6 +14,18 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.round === 'undefined') {
+      console.error('[Current Round] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const symbol = searchParams.get('symbol');
     
