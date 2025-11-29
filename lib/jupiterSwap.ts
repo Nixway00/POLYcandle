@@ -48,18 +48,34 @@ export async function getSwapQuote(
       asLegacyTransaction: 'false',
     });
 
-    const response = await fetch(`${JUPITER_API}/quote?${params}`);
+    const url = `${JUPITER_API}/quote?${params}`;
+    console.log(`[Jupiter] Requesting quote: ${url}`);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
     
     if (!response.ok) {
-      console.error('Jupiter quote error:', await response.text());
-      return null;
+      const errorText = await response.text();
+      console.error(`[Jupiter] Quote API error (${response.status}):`, errorText);
+      throw new Error(`Jupiter API error: ${response.status} - ${errorText}`);
     }
 
     const quote = await response.json();
+    
+    if (!quote || !quote.outAmount) {
+      console.error('[Jupiter] Invalid quote response:', quote);
+      throw new Error('Invalid quote response from Jupiter');
+    }
+    
+    console.log(`[Jupiter] Quote received: ${quote.outAmount} USDC`);
     return quote;
   } catch (error) {
-    console.error('Error fetching swap quote:', error);
-    return null;
+    console.error('[Jupiter] Error fetching swap quote:', error);
+    throw error; // Rilancia invece di ritornare null
   }
 }
 
@@ -180,10 +196,13 @@ export async function estimateUsdcValue(
     console.log(`Estimating ${tokenAmount} ${tokenSymbol} → USDC...`);
 
     // Get quote
-    const quote = await getSwapQuote(tokenInfo.mint, amountInSmallestUnit);
-    if (!quote) {
-      console.error('Failed to get quote from Jupiter');
-      throw new Error('Failed to get swap quote');
+    let quote: SwapQuote;
+    try {
+      quote = await getSwapQuote(tokenInfo.mint, amountInSmallestUnit);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error(`[Estimate] Failed to get quote for ${tokenSymbol}:`, errorMessage);
+      throw new Error(`Jupiter quote failed: ${errorMessage}`);
     }
 
     // Convert USDC output to decimal

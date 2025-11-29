@@ -41,11 +41,29 @@ export async function GET(request: NextRequest) {
     }
 
     // Get Jupiter quote
-    const estimatedUsdc = await estimateUsdcValue(token, amount);
+    console.log(`[Estimate API] Requesting quote for ${amount} ${token}`);
+    
+    let estimatedUsdc: number;
+    try {
+      estimatedUsdc = await estimateUsdcValue(token, amount);
+    } catch (error) {
+      console.error('[Estimate API] Error in estimateUsdcValue:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return NextResponse.json(
+        { 
+          error: 'Unable to get quote from Jupiter',
+          details: errorMessage,
+        },
+        { status: 500 }
+      );
+    }
 
     if (estimatedUsdc === 0) {
       return NextResponse.json(
-        { error: 'Unable to get quote from Jupiter' },
+        { 
+          error: 'Unable to get quote from Jupiter',
+          details: 'Quote returned 0 USDC value',
+        },
         { status: 500 }
       );
     }
