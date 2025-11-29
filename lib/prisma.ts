@@ -10,6 +10,7 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 if (!process.env.DATABASE_URL) {
   console.error('⚠️ DATABASE_URL environment variable is not set!');
   console.error('Please configure DATABASE_URL in your environment variables.');
+  console.error('For Vercel: Go to Settings → Environment Variables → Add DATABASE_URL');
 }
 
 // Initialize Prisma Client
@@ -19,6 +20,17 @@ export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
+    // Add connection timeout for Vercel
+    __internal: {
+      engine: {
+        connectTimeout: 10000, // 10 seconds
+      },
+    } as any,
   });
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
