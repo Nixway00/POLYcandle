@@ -27,6 +27,7 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
   const [amount, setAmount] = useState('');
   const [estimatedUsdc, setEstimatedUsdc] = useState<number | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [estimateError, setEstimateError] = useState<string | null>(null);
   const [selectedSide, setSelectedSide] = useState<'GREEN' | 'RED' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -45,30 +46,42 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
       // Reset if invalid
       if (!amount || isNaN(amountNum) || amountNum <= 0) {
         setEstimatedUsdc(null);
+        setEstimateError(null);
         return;
       }
       
       // If already USDC, no conversion needed
       if (selectedToken === 'USDC') {
         setEstimatedUsdc(amountNum);
+        setEstimateError(null);
         return;
       }
       
       try {
         setIsLoadingQuote(true);
+        setEstimateError(null);
         const response = await fetch(
           `/api/swap/estimate?token=${selectedToken}&amount=${amountNum}`
         );
         
         if (response.ok) {
           const data = await response.json();
-          setEstimatedUsdc(data.estimatedUsdc);
+          if (data.error) {
+            setEstimatedUsdc(null);
+            setEstimateError(data.error + (data.details ? `: ${data.details}` : ''));
+          } else {
+            setEstimatedUsdc(data.estimatedUsdc);
+            setEstimateError(null);
+          }
         } else {
+          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
           setEstimatedUsdc(null);
+          setEstimateError(errorData.error || `HTTP ${response.status}`);
         }
       } catch (error) {
         console.error('Error estimating USDC value:', error);
         setEstimatedUsdc(null);
+        setEstimateError(error instanceof Error ? error.message : 'Network error');
       } finally {
         setIsLoadingQuote(false);
       }
@@ -120,17 +133,31 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
         throw new Error(`Token ${selectedToken} not supported`);
       }
       
-      const platformWalletPubkey = new PublicKey(PLATFORM_WALLET);
+      // Validate platform wallet
+      if (!PLATFORM_WALLET || PLATFORM_WALLET === 'YOUR_PLATFORM_WALLET_HERE') {
+        throw new Error('Platform wallet not configured. Please contact support.');
+      }
+      
+      let platformWalletPubkey: PublicKey;
+      try {
+        platformWalletPubkey = new PublicKey(PLATFORM_WALLET);
+      } catch (error) {
+        throw new Error(`Invalid platform wallet address: ${PLATFORM_WALLET}`);
+      }
+      
       const transaction = new Transaction();
       
       // Handle SOL (native) vs SPL tokens
       if (selectedToken === 'SOL') {
         // Native SOL transfer
+        const lamports = Math.floor(amountNum * LAMPORTS_PER_SOL);
+        console.log(`[Bet] Transferring ${amountNum} SOL = ${lamports} lamports`);
+        
         transaction.add(
           SystemProgram.transfer({
             fromPubkey: publicKey,
             toPubkey: platformWalletPubkey,
-            lamports: amountNum * LAMPORTS_PER_SOL,
+            lamports,
           })
         );
       } else {
@@ -149,9 +176,15 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
         );
         
         // Convert amount to smallest unit
-        const amountInSmallestUnit = Math.floor(
-          amountNum * Math.pow(10, tokenInfo.decimals)
+        // Example: 100 BONK with 5 decimals = 100 * 10^5 = 10,000,000
+        const amountInSmallestUnit = BigInt(
+          Math.floor(amountNum * Math.pow(10, tokenInfo.decimals))
         );
+        
+        console.log(`[Bet] Transferring ${amountNum} ${selectedToken}`);
+        console.log(`[Bet] Token decimals: ${tokenInfo.decimals}`);
+        console.log(`[Bet] Amount in smallest unit: ${amountInSmallestUnit.toString()}`);
+        console.log(`[Bet] Calculation: ${amountNum} * 10^${tokenInfo.decimals} = ${amountInSmallestUnit.toString()}`);
         
         // Create transfer instruction
         transaction.add(
@@ -275,20 +308,35 @@ export default function BettingFormWithWallet({ round, onBetPlaced }: BettingFor
         
         {/* USDC Value Display */}
         {amount && parseFloat(amount) > 0 && (
-          <div className="mt-2 p-3 bg-blue-900/20 border border-blue-500 rounded">
+          <div className={`mt-2 p-3 rounded border ${
+            estimateError 
+              ? 'bg-red-900/20 border-red-500' 
+              : 'bg-blue-900/20 border-blue-500'
+          }`}>
             <div className="flex items-center justify-between">
-              <span className="text-sm text-blue-300">Bet Value:</span>
-              <span className="text-lg font-bold text-blue-200">
+              <span className={`text-sm ${estimateError ? 'text-red-300' : 'text-blue-300'}`}>
+                Bet Value:
+              </span>
+              <span className={`text-lg font-bold ${
+                estimateError ? 'text-red-200' : 'text-blue-200'
+              }`}>
                 {isLoadingQuote ? (
                   '⏳ Loading...'
                 ) : estimatedUsdc !== null ? (
                   `~${estimatedUsdc.toFixed(2)} USDC`
+                ) : estimateError ? (
+                  '❌ Error'
                 ) : (
                   'Unable to estimate'
                 )}
               </span>
             </div>
-            {selectedToken !== 'USDC' && estimatedUsdc !== null && (
+            {estimateError && (
+              <p className="text-xs text-red-400 mt-1">
+                {estimateError}
+              </p>
+            )}
+            {selectedToken !== 'USDC' && estimatedUsdc !== null && !estimateError && (
               <p className="text-xs text-blue-400 mt-1">
                 Your {amount} {selectedToken} will be automatically swapped to USDC
               </p>

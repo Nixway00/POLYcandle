@@ -44,7 +44,7 @@ export const SUPPORTED_TOKENS: Record<string, TokenInfo> = {
     symbol: 'BONK',
     name: 'Bonk',
     mint: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263',
-    decimals: 5,
+    decimals: 5, // BONK has 5 decimals on Solana mainnet
     icon: '🐕',
     coingeckoId: 'bonk',
   },
