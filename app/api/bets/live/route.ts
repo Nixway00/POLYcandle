@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { SUPPORTED_SYMBOLS } from '@/lib/types';
+import { RoundStatus } from '@prisma/client';
 
 // Force dynamic rendering (uses database)
 export const dynamic = 'force-dynamic';
@@ -42,7 +43,7 @@ export async function GET(request: NextRequest) {
       const currentRound = await prisma.round.findFirst({
         where: {
           symbol,
-          status: 'OPEN',
+          status: RoundStatus.OPEN,
         },
         orderBy: {
           startTime: 'desc',
