@@ -24,6 +24,18 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.round === 'undefined') {
+      console.error('[Place Bet] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     const body: any = await request.json();
     
     // Validate required fields

@@ -11,6 +11,18 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.bet === 'undefined') {
+      console.error('[User Bets] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const walletAddress = searchParams.get('wallet');
     const limit = parseInt(searchParams.get('limit') || '20', 10);

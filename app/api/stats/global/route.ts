@@ -11,6 +11,18 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET() {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.bet === 'undefined') {
+      console.error('[Global Stats] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     // Get total bets
     const totalBets = await prisma.bet.count();
 

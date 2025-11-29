@@ -10,6 +10,18 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.user === 'undefined') {
+      console.error('[User Profile GET] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const walletAddress = searchParams.get('wallet');
 
@@ -62,6 +74,18 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Check if Prisma is initialized
+    if (!prisma || typeof prisma.user === 'undefined') {
+      console.error('[User Profile POST] Prisma Client not initialized');
+      return NextResponse.json(
+        { 
+          error: 'Database connection error',
+          details: 'Prisma Client not initialized. Please check DATABASE_URL and ensure Prisma Client is generated.',
+        },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
     const { walletAddress, username, avatar, isAnonymous } = body;
 
